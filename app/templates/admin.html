@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Admin — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <h2>Users</h2>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <table>
+    <thead>
+      <tr><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+        <tr {% if not u.is_active %}class="inactive"{% endif %}>
+          <td>{{ u.email }}</td>
+          <td class="role-{{ u.role }}">{{ u.role }}</td>
+          <td>{{ 'active' if u.is_active else 'inactive' }}</td>
+          <td>{{ u.created_at[:10] }}</td>
+          <td>
+            {% if u.id != user.id %}
+              <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline-form">
+                <button class="subtle">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
+              </form>
+            {% else %}
+              <span style="color: var(--muted); font-size: 0.85rem;">(you)</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2 style="margin-top: 2rem;">Add a user</h2>
+  <form method="post" action="/admin/users" class="panel">
+    <label>Email
+      <input type="email" name="email" required>
+    </label>
+    <label>Password
+      <input type="password" name="password" required minlength="8">
+    </label>
+    <label>Role
+      <select name="role" required>
+        <option value="uploader">uploader — can upload new clips</option>
+        <option value="admin">admin — can also manage users</option>
+        <option value="viewer">viewer — no extra permissions (for the future)</option>
+      </select>
+    </label>
+    <button type="submit">Create user</button>
+  </form>
+{% endblock %}

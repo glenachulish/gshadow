@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Log in — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <h2>Log in</h2>
+  <p style="color: var(--muted); font-size: 0.9rem;">
+    Login is restricted to the Tailscale network.
+  </p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="panel">
+    <label>Email
+      <input type="email" name="email" required autofocus autocomplete="username">
+    </label>
+    <label>Password
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    <button type="submit">Log in</button>
+  </form>
+{% endblock %}

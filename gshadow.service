@@ -1,0 +1,27 @@
+[Unit]
+Description=Gaelic Shadowing Practice
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/gshadow
+EnvironmentFile=/home/pi/gshadow/.env
+ExecStart=/home/pi/gshadow/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8003
+Restart=on-failure
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/pi/gshadow/data /home/pi/gshadow/audio
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

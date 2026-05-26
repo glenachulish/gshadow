@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}{{ collection.title }} — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <a href="/category/{{ category.slug }}">{{ category.title }}</a>
+    <span class="sep">›</span>
+    <span>{{ collection.title }}</span>
+  </nav>
+
+  <h2 style="margin-top: 0;">{{ collection.title }}</h2>
+  {% if user and user.role in ['admin', 'uploader'] %}
+    <form method="post" action="/c/{{ collection.slug }}/delete" class="inline-form"
+          onsubmit="return confirm('Delete this whole collection and all its clips? This cannot be undone.');">
+      <button type="submit" class="subtle" style="color: var(--error-fg);">Delete collection</button>
+    </form>
+  {% endif %}
+  {% if collection.description %}
+    <p style="color: var(--muted);">{{ collection.description }}</p>
+  {% endif %}
+  {% if collection.source_url %}
+    <p style="color: var(--muted); font-size: 0.9rem;">
+      Source: <a href="{{ collection.source_url }}" rel="noreferrer noopener">{{ collection.source_url }}</a>
+    </p>
+  {% endif %}
+
+  <div class="player" id="player">
+    <div class="controls">
+      <button class="play" id="play-btn" type="button">▶ Play selected</button>
+      <button class="subtle" id="stop-btn" type="button">Stop</button>
+      <label style="margin: 0;">Repeat each clip:
+        <select id="repeat-count" style="width: auto; display: inline-block; margin-left: 0.25rem;">
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="3">3×</option>
+          <option value="4">4×</option>
+          <option value="5">5×</option>
+        </select>
+      </label>
+      <span class="status" id="status">No clip playing</span>
+    </div>
+    <audio id="audio" preload="none"></audio>
+  </div>
+
+  <div class="selection-bar">
+    <button class="subtle" id="select-all" type="button">Select all</button>
+    <button class="subtle" id="select-none" type="button">Select none</button>
+    <span style="color: var(--muted);">Tip: tick the boxes for the clips you want to play, then press Play.</span>
+  </div>
+
+  <div id="clips-list">
+    {% for clip in clips %}
+      <div class="clip-row" data-pos="{{ clip.position }}">
+        <input type="checkbox" class="clip-cb"
+               id="cb-{{ clip.id }}"
+               data-filename="{{ clip.filename }}"
+               data-position="{{ clip.position }}"
+               checked>
+        <label for="cb-{{ clip.id }}" class="pos">{{ "%02d"|format(clip.position) }}</label>
+        <div class="text">
+          {% if clip.description %}<p class="desc">{{ clip.description }}</p>{% endif %}
+          {% if clip.advice %}<p class="advice">{{ clip.advice }}</p>{% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  {% if collection.transcript %}
+    <details class="transcript">
+      <summary>Gaelic transcript</summary>
+      <div class="body">{{ collection.transcript }}</div>
+    </details>
+  {% endif %}
+  {% if collection.notes %}
+    <details class="transcript">
+      <summary>English translation</summary>
+      <div class="body">{{ collection.notes }}</div>
+    </details>
+  {% endif %}
+
+<script>
+(function () {
+  // The player walks through a queue of clips, replaying each `repeatCount`
+  // times before moving to the next. State lives entirely in this closure.
+  const audio = document.getElementById('audio');
+  const playBtn = document.getElementById('play-btn');
+  const stopBtn = document.getElementById('stop-btn');
+  const statusEl = document.getElementById('status');
+  const repeatSelect = document.getElementById('repeat-count');
+  const clipsList = document.getElementById('clips-list');
+  const selectAllBtn = document.getElementById('select-all');
+  const selectNoneBtn = document.getElementById('select-none');
+
+  let queue = [];        // array of {filename, position, rowEl}
+  let queueIndex = 0;    // which clip in the queue we're on
+  let playsLeft = 0;     // how many more plays of the current clip
+  let isPlaying = false;
+
+  function clearHighlight() {
+    clipsList.querySelectorAll('.clip-row.now-playing')
+      .forEach(r => r.classList.remove('now-playing'));
+  }
+
+  function setStatus(text) { statusEl.textContent = text; }
+
+  function buildQueue() {
+    const cbs = Array.from(clipsList.querySelectorAll('.clip-cb'));
+    return cbs
+      .filter(cb => cb.checked)
+      .map(cb => ({
+        filename: cb.dataset.filename,
+        position: parseInt(cb.dataset.position, 10),
+        rowEl: cb.closest('.clip-row'),
+      }))
+      .sort((a, b) => a.position - b.position);
+  }
+
+  function playCurrent() {
+    if (queueIndex >= queue.length) {
+      stop();
+      setStatus('Done');
+      return;
+    }
+    const c = queue[queueIndex];
+    clearHighlight();
+    c.rowEl.classList.add('now-playing');
+    c.rowEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const reps = parseInt(repeatSelect.value, 10);
+    const currentRep = (reps - playsLeft) + 1;
+    setStatus(
+      'Clip ' + String(c.position).padStart(2, '0') +
+      ' — play ' + currentRep + '/' + reps +
+      ' (queue ' + (queueIndex + 1) + '/' + queue.length + ')'
+    );
+    audio.src = '/audio/' + c.filename;
+    audio.play().catch(err => {
+      setStatus('Playback failed: ' + err.message);
+      isPlaying = false;
+    });
+  }
+
+  function start() {
+    queue = buildQueue();
+    if (queue.length === 0) {
+      setStatus('No clips selected');
+      return;
+    }
+    queueIndex = 0;
+    playsLeft = parseInt(repeatSelect.value, 10);
+    isPlaying = true;
+    playCurrent();
+  }
+
+  function stop() {
+    isPlaying = false;
+    audio.pause();
+    audio.currentTime = 0;
+    clearHighlight();
+    setStatus('Stopped');
+  }
+
+  audio.addEventListener('ended', () => {
+    if (!isPlaying) return;
+    playsLeft -= 1;
+    if (playsLeft > 0) {
+      playCurrent();
+    } else {
+      queueIndex += 1;
+      playsLeft = parseInt(repeatSelect.value, 10);
+      playCurrent();
+    }
+  });
+
+  playBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+  selectAllBtn.addEventListener('click', () => {
+    clipsList.querySelectorAll('.clip-cb').forEach(cb => cb.checked = true);
+  });
+  selectNoneBtn.addEventListener('click', () => {
+    clipsList.querySelectorAll('.clip-cb').forEach(cb => cb.checked = false);
+  });
+})();
+</script>
+{% endblock %}

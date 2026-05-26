@@ -1,0 +1,15 @@
+# Pre-populated clip metadata.
+#
+# Each entry must have a 'filename' that exists in audio/. Run
+# `python -m seed.seed` from the project root to insert new entries.
+# Already-inserted rows (matched by filename) are left alone.
+
+# - filename: example-greeting.mp3
+#   title: "Halò agus latha math"
+#   description: "A short greeting in Scottish Gaelic."
+#   advice: "Pay attention to the broad 'l' in 'latha' — it's a dark L."
+#
+# - filename: example-weather.mp3
+#   title: "An aimsir an-diugh"
+#   description: "Discussing today's weather in everyday register."
+#   advice: "Note how 'an-diugh' elides into something close to 'an JOO'."

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Upload — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <h2>Upload a clip</h2>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/upload" enctype="multipart/form-data" class="panel">
+    <label>Title
+      <input type="text" name="title" required maxlength="200">
+    </label>
+    <label>Description
+      <textarea name="description" placeholder="What the speaker is saying, context, register…"></textarea>
+    </label>
+    <label>Advice for learners
+      <textarea name="advice" placeholder="Sounds to watch for, common pitfalls, pronunciation tips…"></textarea>
+    </label>
+    <label>Audio file
+      <input type="file" name="audio" accept="audio/*,.mp3,.m4a,.ogg,.wav,.opus,.flac,.aac" required>
+    </label>
+    <button type="submit">Upload</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+audio/*
+!audio/.gitkeep
+
+# backups and dead code
+*.bak
+*.bak2
+backend/

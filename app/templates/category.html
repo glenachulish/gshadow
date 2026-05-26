@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ category.title }} — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>{{ category.title }}</span>
+  </nav>
+
+  <h2 style="margin: 0 0 0.25rem;">{{ category.title }}</h2>
+  <p style="color: var(--muted); margin: 0 0 1rem;">{{ category.description }}</p>
+
+  {% if not collections %}
+    <p style="color: var(--muted);">No collections in this category yet.</p>
+  {% endif %}
+
+  {% for c in collections %}
+    <div class="collection-card">
+      <div class="body">
+        <h3>{{ c.title }}</h3>
+        {% if c.description %}<p class="meta">{{ c.description }}</p>{% endif %}
+        <p class="meta">{{ c.clip_count }} clip{{ '' if c.clip_count == 1 else 's' }}</p>
+      </div>
+      <a class="open" href="/c/{{ c.slug }}">Open →</a>
+    </div>
+  {% endfor %}
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}New collection — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>New collection</span>
+  </nav>
+
+  <h2>New collection</h2>
+  <p style="color: var(--muted);">
+    Bundle multiple audio clips into a single collection. The clips will appear
+    in the order their filenames sort — so zero-pad numeric filenames
+    (<code>01.mp3</code>, <code>02.mp3</code>, …, <code>28.mp3</code>) for the
+    order to come out right.
+  </p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/collections/new" enctype="multipart/form-data" class="panel">
+    <label>Title
+      <input type="text" name="title" required maxlength="200">
+    </label>
+    <label>Category
+      <select name="category" required>
+        {% for c in categories %}
+          <option value="{{ c.slug }}" {% if c.slug == 'other' %}selected{% endif %}>{{ c.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Brief description (one or two sentences)
+      <textarea name="description"
+                placeholder="What's this collection about? Speaker, source, context…"></textarea>
+    </label>
+    <label>Transcript (optional, paste the whole thing)
+      <textarea name="transcript" style="min-height: 9rem;"
+                placeholder="The full transcript, if you have one. Will display on the collection page."></textarea>
+    </label>
+    <label>Notes / English translation (optional)
+      <textarea name="notes" style="min-height: 6rem;"
+                placeholder="Translation, register notes, dialect, anything else useful."></textarea>
+    </label>
+    <label>Audio files (you can pick many at once)
+      <input type="file" name="files" required multiple
+             accept="audio/*,.mp3,.m4a,.ogg,.wav,.opus,.flac,.aac">
+    </label>
+    <button type="submit">Create collection</button>
+  </form>
+{% endblock %}

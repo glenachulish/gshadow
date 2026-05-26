@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}User Guide — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>User guide</span>
+  </nav>
+
+  <div class="guide-content">
+    {{ guide_html | safe }}
+  </div>
+{% endblock %}

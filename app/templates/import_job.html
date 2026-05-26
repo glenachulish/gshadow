@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Import status — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  {% if job.status in ['queued', 'running'] %}
+    <meta http-equiv="refresh" content="3">
+  {% endif %}
+
+  <h2>Import status</h2>
+  <div class="job-status">
+    <p style="margin: 0 0 0.5rem;"><strong>URL:</strong> <code>{{ job.url }}</code></p>
+    <p style="margin: 0 0 0.5rem;">
+      <strong>Status:</strong>
+      <span class="status-{{ job.status }}">{{ job.status }}</span>
+    </p>
+    {% if job.message %}
+      <p style="margin: 0;"><strong>Message:</strong> {{ job.message }}</p>
+    {% endif %}
+  </div>
+
+  {% if job.status in ['queued', 'running'] %}
+    <p style="color: var(--muted);">
+      This page auto-refreshes every few seconds. Imports usually finish in
+      under a minute. Don't close the page if you want to see the result here —
+      but the import will complete in the background either way.
+    </p>
+  {% elif job.status == 'done' and collection_slug %}
+    <p>
+      <a class="open" style="background: var(--accent); color: white;
+         padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none;"
+         href="/c/{{ collection_slug }}">Open collection →</a>
+    </p>
+  {% elif job.status == 'failed' %}
+    <p>
+      <a href="/import">Try another URL</a>
+      &nbsp;·&nbsp;
+      <a href="/">Back to home</a>
+    </p>
+  {% endif %}
+{% endblock %}

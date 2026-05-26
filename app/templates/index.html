@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+  <p style="color: var(--muted); margin: 0 0 1rem;">
+    Choose a category to browse its collections, or read the
+    <a href="/guide">user guide</a> if you're new here.
+  </p>
+
+  {% for c in categories %}
+    <a class="category-card" href="/category/{{ c.slug }}">
+      <h3>{{ c.title }}</h3>
+      <p class="desc">{{ c.description }}</p>
+      <p class="meta">{{ c.count }} collection{{ '' if c.count == 1 else 's' }}</p>
+    </a>
+  {% endfor %}
+
+  {% if clips %}
+    <h2 style="margin-top: 2rem;">Loose individual clips</h2>
+    <p style="color: var(--muted); font-size: 0.9rem;">
+      Single clips not yet in any collection.
+    </p>
+    {% for clip in clips %}
+      <div class="clip">
+        <h3>{{ clip.title }}</h3>
+        {% if clip.description %}<p class="desc">{{ clip.description }}</p>{% endif %}
+        <audio controls preload="none" src="/audio/{{ clip.filename }}"></audio>
+        {% if clip.advice %}<div class="advice">{{ clip.advice }}</div>{% endif %}
+        {% if user and user.role in ['admin', 'uploader'] %}
+          <form method="post" action="/clips/{{ clip.id }}/delete" class="inline-form"
+                onsubmit="return confirm('Delete this clip? This cannot be undone.');">
+            <button type="submit" class="subtle" style="color: var(--error-fg);">Delete</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="guide-promo">
+    First time? Read the <a href="/guide">user guide</a> for an explanation
+    of shadowing and how to use the player.
+  </div>
+{% endblock %}

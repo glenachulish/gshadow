@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Gaelic Shadowing Practice{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f7f5f0;
+      --fg: #1d1f21;
+      --accent: #2d5a3d;
+      --accent-dark: #1e3d29;
+      --muted: #777;
+      --border: #ddd;
+      --card: #ffffff;
+      --error-bg: #fde8e8;
+      --error-border: #f5c2c2;
+      --error-fg: #9b1c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--fg);
+      margin: 0; line-height: 1.5;
+    }
+    header { background: var(--accent); color: white; padding: 0.9rem 1.5rem; }
+    header a { color: white; text-decoration: none; }
+    header h1 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+    nav { margin-top: 0.25rem; font-size: 0.9rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    nav .who { opacity: 0.85; margin-right: auto; }
+    main { max-width: 760px; margin: 0 auto; padding: 1.5rem 1.25rem; }
+    h2 { margin-top: 0; }
+    .clip {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem 1.25rem; margin-bottom: 1rem;
+    }
+    .clip h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+    .clip .desc { margin: 0.25rem 0 0.5rem; }
+    .clip .advice {
+      color: var(--muted); font-size: 0.9rem; font-style: italic;
+      margin-top: 0.5rem; border-left: 3px solid var(--border); padding-left: 0.75rem;
+    }
+    audio { width: 100%; margin-top: 0.5rem; }
+    form.panel {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.25rem;
+    }
+    label { display: block; margin-top: 0.75rem; font-weight: 500; font-size: 0.95rem; }
+    input[type=text], input[type=email], input[type=password],
+    input[type=file], textarea, select {
+      width: 100%; padding: 0.5rem; border: 1px solid var(--border);
+      border-radius: 4px; font-family: inherit; font-size: 1rem;
+      background: white;
+    }
+    textarea { min-height: 5rem; resize: vertical; }
+    button {
+      background: var(--accent); color: white; border: 0;
+      padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer;
+      font-size: 1rem; margin-top: 1rem; font-family: inherit;
+    }
+    button:hover { background: var(--accent-dark); }
+    button.subtle {
+      background: transparent; color: inherit; padding: 0.2rem 0.4rem;
+      margin: 0; font-size: 0.85rem; text-decoration: underline;
+    }
+    button.subtle:hover { background: transparent; opacity: 0.7; }
+    .inline-form { display: inline; background: none; border: 0; padding: 0; }
+    .error {
+      background: var(--error-bg); border: 1px solid var(--error-border);
+      color: var(--error-fg); padding: 0.75rem 1rem; border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+    table { width: 100%; border-collapse: collapse; background: var(--card);
+            border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    th, td { text-align: left; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
+    th { background: #fafaf6; font-weight: 600; font-size: 0.9rem; }
+    tr:last-child td { border-bottom: 0; }
+    .role-admin { color: var(--error-fg); font-weight: 500; }
+    .role-uploader { color: var(--accent); font-weight: 500; }
+    .role-viewer { color: var(--muted); }
+    tr.inactive td { color: var(--muted); text-decoration: line-through; }
+
+    .collection-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem 1.25rem; margin-bottom: 1rem;
+      display: flex; align-items: center; gap: 1rem;
+    }
+    .collection-card .body { flex: 1; }
+    .collection-card h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+    .collection-card .meta { color: var(--muted); font-size: 0.9rem; margin: 0.1rem 0 0; }
+    .collection-card a.open {
+      background: var(--accent); color: white; padding: 0.5rem 0.9rem;
+      border-radius: 4px; text-decoration: none; white-space: nowrap;
+    }
+    .collection-card a.open:hover { background: var(--accent-dark); }
+
+    .player {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1rem 1.25rem; margin-bottom: 1.5rem; position: sticky; top: 0; z-index: 10;
+    }
+    .player .controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .player .controls > * { margin: 0; }
+    .player button.play { padding: 0.5rem 1.2rem; margin: 0; }
+    .player .status { color: var(--muted); font-size: 0.9rem; margin-left: auto; }
+    .player audio { width: 100%; margin-top: 0.6rem; }
+
+    .clip-row {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      padding: 0.6rem 0.4rem; border-bottom: 1px solid var(--border);
+    }
+    .clip-row:last-child { border-bottom: 0; }
+    .clip-row.now-playing { background: #eef5ef; }
+    .clip-row input[type=checkbox] { margin-top: 0.3rem; }
+    .clip-row .pos {
+      flex: 0 0 2.2rem; color: var(--muted); font-variant-numeric: tabular-nums;
+      font-weight: 500; padding-top: 0.15rem;
+    }
+    .clip-row .text { flex: 1; }
+    .clip-row .text .desc { margin: 0; }
+    .clip-row .text .advice {
+      color: var(--muted); font-style: italic; font-size: 0.9rem;
+      margin: 0.25rem 0 0; border-left: 2px solid var(--border); padding-left: 0.6rem;
+    }
+    .selection-bar {
+      display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+      margin-bottom: 0.75rem; font-size: 0.9rem;
+    }
+    .selection-bar button.subtle { color: var(--accent); }
+    details.transcript { background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.75rem 1rem; margin-top: 1rem; }
+    details.transcript summary { cursor: pointer; font-weight: 500; }
+    details.transcript .body { margin-top: 0.75rem; white-space: pre-wrap; line-height: 1.6; }
+    .job-status { background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .job-status .status-queued { color: var(--muted); }
+    .job-status .status-running { color: var(--accent); font-weight: 500; }
+    .job-status .status-done { color: var(--accent-dark); font-weight: 500; }
+    .job-status .status-failed { color: var(--error-fg); font-weight: 500; }
+
+    .breadcrumb {
+      color: var(--muted); font-size: 0.9rem; margin: 0 0 1rem;
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb .sep { color: var(--border); margin: 0 0.4rem; }
+
+    .category-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+      display: block; text-decoration: none; color: inherit;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .category-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      border-color: var(--accent);
+    }
+    .category-card h3 {
+      margin: 0 0 0.3rem;
+      color: var(--accent);
+      font-size: 1.15rem;
+    }
+    .category-card .desc { margin: 0 0 0.3rem; }
+    .category-card .meta { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+    .guide-promo {
+      background: var(--card); border: 1px dashed var(--border); border-radius: 8px;
+      padding: 0.9rem 1.25rem; margin-top: 1.25rem; color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .guide-promo a { color: var(--accent); font-weight: 500; }
+
+    .guide-content { background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1.25rem 1.5rem; }
+    .guide-content h1, .guide-content h2, .guide-content h3 { margin-top: 1.4em; }
+    .guide-content h1:first-child, .guide-content h2:first-child { margin-top: 0; }
+    .guide-content code { background: #f1f1ec; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+    .guide-content pre { background: #f1f1ec; padding: 0.75rem 1rem; border-radius: 4px; overflow-x: auto; }
+    .guide-content pre code { background: none; padding: 0; }
+    .guide-content blockquote { border-left: 3px solid var(--border); padding-left: 0.75rem; color: var(--muted); }
+    .guide-content table { border-collapse: collapse; margin: 0.75rem 0; }
+    .guide-content table th, .guide-content table td { border: 1px solid var(--border); padding: 0.3rem 0.6rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="/">Gaelic Shadowing Practice</a></h1>
+    <nav>
+      {% if user %}
+        <span class="who">{{ user.email }} ({{ user.role }})</span>
+        {% if user.role in ['admin', 'uploader'] %}
+          <a href="/upload">Upload clip</a>
+          <a href="/collections/new">New collection</a>
+          <a href="/import">Import URL</a>
+        {% endif %}
+        {% if user.role == 'admin' %}<a href="/admin">Admin</a>{% endif %}
+        <a href="/guide">Guide</a>
+        <form method="post" action="/logout" class="inline-form">
+          <button type="submit" class="subtle" style="color: white;">Log out</button>
+        </form>
+      {% else %}
+        <a href="/guide" style="margin-left: auto;">Guide</a>
+        <a href="/login" class="who" style="margin-left: 0;">Log in</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

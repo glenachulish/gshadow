@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Import from URL — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>Import URL</span>
+  </nav>
+
+  <h2>Import from URL</h2>
+  <p style="color: var(--muted);">
+    Paste a learngaelic.scot URL and the audio will be downloaded, split, and
+    turned into a new collection. Takes about 30–60 seconds.
+  </p>
+  <p style="color: var(--muted); font-size: 0.9rem;">
+    Supported URL patterns:<br>
+    <code>https://learngaelic.scot/litir/litir.jsp?l=…</code> (Litir)<br>
+    <code>https://learngaelic.scot/litirbheag/litir.jsp?l=…</code> (Litir Bheag)<br>
+    <code>https://learngaelic.scot/look/look.jsp?b=…</code> (Look @ LearnGaelic — video; audio extracted)<br>
+    <code>https://learngaelic.scot/watch/watch.jsp?v=…</code> (Watch Gaelic — video; audio extracted)<br>
+    For other audio, use the Mac splitter script and the
+    <a href="/collections/new">New collection</a> form.
+  </p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/import" class="panel">
+    <label>URL
+      <input type="url" name="url" required
+             placeholder="https://learngaelic.scot/litirbheag/litir.jsp?l=1040">
+    </label>
+    <button type="submit">Start import</button>
+  </form>
+{% endblock %}
