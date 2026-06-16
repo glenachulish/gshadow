@@ -178,3 +178,17 @@ items grouped sensibly.*
 - Should the in-page clip-moving feature also allow reordering within a
   collection? (Related: repo notes already list "no drag-to-reorder" as
   a deliberate omission.)
+
+## Added 2026-05-26 (later)
+
+- [ ] **"Currently working on" filter on collections.** Add an
+      `in_progress` boolean column to `collections` (idempotent
+      migration); toggle button on the collection page (admin/uploader);
+      filter chip on category/home pages; a `/working-on` index. Per
+      collection, not per user — this is a personal site with a curated
+      "what I'm working on" shelf. ~5 files; Pi deploy.
+- [ ] **Resume position within a collection.** Per-device, browser-only:
+      `localStorage` stores the last-played clip number per collection
+      slug. On page reopen, scroll to and highlight that clip and show
+      a "Resume from clip N" button rather than autoplaying. Queue
+      position only, not in-clip timestamp. Pure frontend, 1 file.
