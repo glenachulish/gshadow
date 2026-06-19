@@ -25,6 +25,22 @@
     </p>
   {% endif %}
 
+  <style>
+    .resume-banner {
+      display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+      background: #eef5ef; border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.75rem 1rem; margin-bottom: 1rem;
+    }
+    .resume-banner span { color: var(--muted); margin-right: auto; }
+    .resume-banner button.play { padding: 0.4rem 1rem; margin: 0; }
+  </style>
+
+  <div class="resume-banner" id="resume-banner" hidden>
+    <span id="resume-text"></span>
+    <button class="play" id="resume-btn" type="button">Resume</button>
+    <button class="subtle" id="resume-dismiss" type="button">Dismiss</button>
+  </div>
+
   <div class="player" id="player">
     <div class="controls">
       <button class="play" id="play-btn" type="button">▶ Play selected</button>
@@ -49,7 +65,7 @@
     <span style="color: var(--muted);">Tip: tick the boxes for the clips you want to play, then press Play.</span>
   </div>
 
-  <div id="clips-list">
+  <div id="clips-list" data-slug="{{ collection.slug }}">
     {% for clip in clips %}
       <div class="clip-row" data-pos="{{ clip.position }}">
         <input type="checkbox" class="clip-cb"
@@ -91,6 +107,38 @@
   const clipsList = document.getElementById('clips-list');
   const selectAllBtn = document.getElementById('select-all');
   const selectNoneBtn = document.getElementById('select-none');
+
+  // --- Resume position (per-device, browser-only) ---------------------
+  // We store the position number of the last clip the listener FULLY
+  // completed (all repeats done), keyed by collection slug. On page load
+  // we offer to resume from there. Queue position only — no in-clip
+  // timestamp, no autoplay.
+  const slug = clipsList.dataset.slug || '';
+  const RESUME_KEY = slug ? ('gshadow:resume:' + slug) : '';
+  const resumeBanner = document.getElementById('resume-banner');
+  const resumeText = document.getElementById('resume-text');
+  const resumeBtn = document.getElementById('resume-btn');
+  const resumeDismiss = document.getElementById('resume-dismiss');
+
+  function saveResume(position) {
+    if (!RESUME_KEY) return;
+    try { localStorage.setItem(RESUME_KEY, String(position)); } catch (e) { /* ignore */ }
+  }
+
+  function readResume() {
+    if (!RESUME_KEY) return null;
+    let raw;
+    try { raw = localStorage.getItem(RESUME_KEY); } catch (e) { return null; }
+    if (raw === null) return null;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function rowForPosition(position) {
+    return Array.from(clipsList.querySelectorAll('.clip-row'))
+      .find(r => parseInt(r.dataset.pos, 10) === position) || null;
+  }
+  // --------------------------------------------------------------------
 
   let queue = [];        // array of {filename, position, rowEl}
   let queueIndex = 0;    // which clip in the queue we're on
@@ -166,6 +214,10 @@
     if (playsLeft > 0) {
       playCurrent();
     } else {
+      // The current clip has finished all its repeats — record it as the
+      // last clip completed, then advance.
+      const finished = queue[queueIndex];
+      if (finished) saveResume(finished.position);
       queueIndex += 1;
       playsLeft = parseInt(repeatSelect.value, 10);
       playCurrent();
@@ -180,6 +232,54 @@
   selectNoneBtn.addEventListener('click', () => {
     clipsList.querySelectorAll('.clip-cb').forEach(cb => cb.checked = false);
   });
+
+  // --- Resume banner wiring -------------------------------------------
+  function hideBanner() { if (resumeBanner) resumeBanner.hidden = true; }
+
+  function offerResume() {
+    if (!resumeBanner) return;
+    const pos = readResume();
+    if (pos === null) return;
+    const row = rowForPosition(pos);
+    if (!row) return;  // stored clip no longer exists (collection changed)
+    resumeText.textContent =
+      'You last finished clip ' + String(pos).padStart(2, '0') + '.';
+    resumeBtn.textContent = 'Resume from clip ' + String(pos).padStart(2, '0');
+    resumeBanner.hidden = false;
+    // Gently highlight where you left off, without changing the queue.
+    clearHighlight();
+    row.classList.add('now-playing');
+    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  if (resumeBtn) {
+    resumeBtn.addEventListener('click', () => {
+      const pos = readResume();
+      if (pos === null) { hideBanner(); return; }
+      // Tick clip N onward, untick everything before it. Leave Play to the user.
+      clipsList.querySelectorAll('.clip-cb').forEach(cb => {
+        const p = parseInt(cb.dataset.position, 10);
+        cb.checked = (p >= pos);
+      });
+      const row = rowForPosition(pos);
+      if (row) {
+        clearHighlight();
+        row.classList.add('now-playing');
+        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+      setStatus('Queue set from clip ' + String(pos).padStart(2, '0') + ' — press Play');
+      hideBanner();
+    });
+  }
+  if (resumeDismiss) {
+    resumeDismiss.addEventListener('click', () => {
+      clearHighlight();
+      hideBanner();
+    });
+  }
+
+  offerResume();
+  // --------------------------------------------------------------------
 })();
 </script>
 {% endblock %}
