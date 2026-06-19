@@ -242,32 +242,50 @@
     if (pos === null) return;
     const row = rowForPosition(pos);
     if (!row) return;  // stored clip no longer exists (collection changed)
-    resumeText.textContent =
-      'You last finished clip ' + String(pos).padStart(2, '0') + '.';
-    resumeBtn.textContent = 'Resume from clip ' + String(pos).padStart(2, '0');
+    const nextRow = rowForPosition(pos + 1);
+    if (nextRow) {
+      resumeText.textContent =
+        'You last finished clip ' + String(pos).padStart(2, '0') + '.';
+      resumeBtn.textContent = 'Resume from clip ' + String(pos + 1).padStart(2, '0');
+      // Gently highlight where you'll pick up, without changing the queue.
+      clearHighlight();
+      nextRow.classList.add('now-playing');
+      nextRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else {
+      resumeText.textContent = "You'd finished this collection.";
+      resumeBtn.textContent = 'Start over';
+      clearHighlight();
+      row.classList.add('now-playing');
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
     resumeBanner.hidden = false;
-    // Gently highlight where you left off, without changing the queue.
-    clearHighlight();
-    row.classList.add('now-playing');
-    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   if (resumeBtn) {
     resumeBtn.addEventListener('click', () => {
       const pos = readResume();
       if (pos === null) { hideBanner(); return; }
-      // Tick clip N onward, untick everything before it. Leave Play to the user.
+      // `pos` is the last clip the listener FINISHED, so resume at the NEXT
+      // clip (pos + 1). Tick that clip onward, untick everything before it.
+      // Leave Play to the user.
+      const resumeAt = pos + 1;
+      const target = rowForPosition(resumeAt);
+      if (!target) {
+        // Finished the last clip — nothing after it. Offer a fresh start.
+        clipsList.querySelectorAll('.clip-cb').forEach(cb => cb.checked = true);
+        setStatus("You'd finished this collection — selected all clips to start over");
+        clearHighlight();
+        hideBanner();
+        return;
+      }
       clipsList.querySelectorAll('.clip-cb').forEach(cb => {
         const p = parseInt(cb.dataset.position, 10);
-        cb.checked = (p >= pos);
+        cb.checked = (p >= resumeAt);
       });
-      const row = rowForPosition(pos);
-      if (row) {
-        clearHighlight();
-        row.classList.add('now-playing');
-        row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-      }
-      setStatus('Queue set from clip ' + String(pos).padStart(2, '0') + ' — press Play');
+      clearHighlight();
+      target.classList.add('now-playing');
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setStatus('Queue set from clip ' + String(resumeAt).padStart(2, '0') + ' — press Play');
       hideBanner();
     });
   }
