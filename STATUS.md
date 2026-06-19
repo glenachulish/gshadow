@@ -77,6 +77,21 @@ work. What happened:
 - Wrote audiobook pause-splitting into `mac-splitter.py` and committed
   it. **Not yet tested — see open issues.**
 
+### 2026-06-18 — Audiobook splitting verified; repo connected
+
+- Connected the `gshadow` GitHub repo to the Claude Project (repo made
+  public to do so; can go back to private now).
+- Tracked down the "no splitting" problem: **ffmpeg was not installed on
+  the Mac.** Installed ffmpeg 8.1.2 via Homebrew.
+- Verified `--mode pauses` end to end on `cabideil 1.mp3` (85.5s → 14
+  clips, 3.9–9.8s, cuts good by ear). Audiobook feature now considered
+  working. Marked the open issue RESOLVED.
+- Confirmed there is **no PWA** for the site (asked and checked — not
+  built, not on the roadmap).
+- Note: nothing required a Pi deploy this session — the splitter is a
+  Mac-side tool and clips reach the Pi via the web upload form. The only
+  change is this STATUS.md update (docs commit, no rsync/restart).
+
 ---
 
 ## Feature work — current status
@@ -88,12 +103,14 @@ work. What happened:
   count needed), tuned for breath-group clips ~5–15s, with
   `--min-clip-len` and `--max-clip-len` safety knobs. Existing
   `sentences` / `speakers` modes left untouched.
-- **NOT DONE / OPEN:** has not been verified to actually split. In the
-  one trial, clips uploaded but no splitting appeared to happen — needs
-  investigation. Possible causes to check: was `--mode pauses` actually
-  passed; did the new file land in `~/gshadow`; did ffmpeg run. Do NOT
-  consider this feature complete until a real audiobook chapter has been
-  split and the per-clip duration table looks right.
+- **RESOLVED 2026-06-18:** `--mode pauses` works correctly. The earlier
+  "no splitting" trial was caused by **ffmpeg not being installed on the
+  Mac** — `check_tools()` exited before any work happened, so nothing was
+  ever cut. (The clips uploaded in that trial must have come from an
+  earlier run or another source.) With ffmpeg 8.1.2 installed via
+  Homebrew, a real chapter (`cabideil 1.mp3`, 85.5s) produced 14 clips of
+  3.9–9.8s, all within the breath-group target. Cuts verified by ear as
+  landing in sensible places.
 - **Decision recorded:** audiobooks are split one folder per CHAPTER
   (Callum splits chapters first), each chapter → one collection. A whole
   book as one collection would be thousands of clips on one page.
@@ -133,17 +150,20 @@ items grouped sensibly.*
 - [x] Push current code to GitHub
 - [x] Rename repo + Mac folder to `gshadow`; make repo private
 - [x] Remove misfiled Òrain / Ceòl files from the folder
-- [ ] Connect the `gshadow` GitHub repo to this Claude Project
+- [x] Connect the `gshadow` GitHub repo to this Claude Project
+      (done 2026-06-18; repo made public temporarily to connect, can be
+      set back to private)
 - [ ] Refile `~/Desktop/misfiled-from-gshadow/` contents into the Òrain
       and Ceòl projects
 - [ ] Decide whether `~/dot-git-OLD-home-repo` can be deleted (low priority)
 
 ### Audiobook splitting
-- [ ] **Investigate why no splitting occurred** in the first trial
-- [ ] Test `--mode pauses` on a real audiobook chapter; confirm clip
-      durations land ~5–15s
+- [x] **Investigate why no splitting occurred** in the first trial
+      (cause: ffmpeg was not installed on the Mac)
+- [x] Test `--mode pauses` on a real audiobook chapter; confirm clip
+      durations land ~5–15s (cabideil 1: 14 clips, 3.9–9.8s ✓)
 - [ ] Tune defaults (`--min-pause`, `--min-clip-len`, `--max-clip-len`)
-      if needed
+      if needed — only one file tested so far; defaults looked good
 - [ ] Update `USER_GUIDE.md` with audiobook / `--mode pauses` instructions
 - [ ] (Optional, later) provide a one-line ffmpeg command to split an
       `.m4b` into per-chapter files using its chapter markers
