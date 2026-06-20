@@ -191,6 +191,7 @@
         {% if user.role in ['admin', 'uploader'] %}
           <a href="/upload">Upload clip</a>
           <a href="/collections/new">New collection</a>
+          <a href="/split">Split a long file</a>
           <a href="/import">Import URL</a>
         {% endif %}
         {% if user.role == 'admin' %}<a href="/admin">Admin</a>{% endif %}
