@@ -39,9 +39,18 @@
     </p>
 
     <div class="split-actions panel" style="margin-bottom: 1.25rem;">
-      <form method="post" action="/split/{{ job.id }}/accept" class="inline-form"
-            onsubmit="return confirm('Create the collection from these {{ clips|length }} clips?');">
-        <button type="submit">Accept — create collection</button>
+      <form method="post" action="/split/{{ job.id }}/accept"
+            style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;"
+            onsubmit="return confirm('Add these {{ clips|length }} clips to the chosen collection?');">
+        <label style="margin:0; font-weight:normal;">Add to
+          <select name="target_collection_id" style="width:auto; display:inline-block;">
+            <option value="" selected>a new collection ({{ job.title }})</option>
+            {% for col in all_collections %}
+              <option value="{{ col.id }}">{{ col.title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit">Accept</button>
       </form>
       <form method="post" action="/split/{{ job.id }}/rerun" class="inline-form"
             style="display: inline-flex; gap: 0.5rem; align-items: center;">

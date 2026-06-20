@@ -161,10 +161,18 @@ def run_split_job(job_id: int, source_path: Path, sensitivity: str,
         _import_lock.release()
 
 
-def accept_job(conn: sqlite3.Connection, job_id: int, uploaded_by: int):
-    """Promote staged clips into a real collection. Returns the new slug.
+def accept_job(conn: sqlite3.Connection, job_id: int, uploaded_by: int,
+               target_collection_id: Optional[int] = None):
+    """Promote staged clips into a collection. Returns the collection slug.
 
-    Raises ValueError if the job isn't in a ready state or staging is gone.
+    If target_collection_id is None, a NEW collection is created from the job's
+    title/category. If it is set, the staged clips are APPENDED to that existing
+    collection, continuing its position numbering. Either way the audio files
+    are moved into the audio dir and clip rows inserted; on any failure the
+    newly added rows/files are rolled back.
+
+    Raises ValueError if the job isn't ready, staging is gone, or a given
+    target collection doesn't exist.
     """
     job = conn.execute(
         "SELECT id, title, category, status FROM split_jobs WHERE id = ?",
@@ -180,45 +188,69 @@ def accept_job(conn: sqlite3.Connection, job_id: int, uploaded_by: int):
 
     clips_dir = _job_dir(job_id) / "clips"
 
-    # Slug uniqueness (same approach as collections._make_slug_unique).
     from . import collections as cols
-    slug = cols._make_slug_unique(conn, cols._slugify(job["title"]))
 
-    cur = conn.execute(
-        "INSERT INTO collections (slug, title, description, transcript, notes, "
-        "source_url, category, uploaded_by, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (slug, job["title"], "", "", "", None, job["category"],
-         uploaded_by, _now()),
-    )
-    collection_id = cur.lastrowid
+    created_new = target_collection_id is None
+    if created_new:
+        # Create a fresh collection (original behaviour).
+        slug = cols._make_slug_unique(conn, cols._slugify(job["title"]))
+        cur = conn.execute(
+            "INSERT INTO collections (slug, title, description, transcript, notes, "
+            "source_url, category, uploaded_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (slug, job["title"], "", "", "", None, job["category"],
+             uploaded_by, _now()),
+        )
+        collection_id = cur.lastrowid
+        start_pos = 1
+    else:
+        # Append to an existing collection.
+        target = conn.execute(
+            "SELECT id, slug FROM collections WHERE id = ?",
+            (target_collection_id,),
+        ).fetchone()
+        if not target:
+            raise ValueError("Target collection not found.")
+        collection_id = target["id"]
+        slug = target["slug"]
+        row = conn.execute(
+            "SELECT COALESCE(MAX(position), 0) AS maxpos FROM clips "
+            "WHERE collection_id = ?", (collection_id,),
+        ).fetchone()
+        start_pos = (row["maxpos"] or 0) + 1
 
     moved: List[Path] = []
+    inserted_clip_ids: List[int] = []
     try:
-        for clip in meta["clips"]:
+        for offset, clip in enumerate(meta["clips"]):
+            pos = start_pos + offset
             src = clips_dir / clip["filename"]
             dest_name = f"{uuid.uuid4().hex}.mp3"
             dest = _audio_dir / dest_name
             dest.write_bytes(src.read_bytes())
             moved.append(dest)
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO clips (title, description, advice, filename, "
                 "uploaded_by, uploaded_at, collection_id, position) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (f"Clip {clip['position']:02d}", "", None, dest_name,
-                 uploaded_by, _now(), collection_id, clip["position"]),
+                (f"Clip {pos:02d}", "", None, dest_name,
+                 uploaded_by, _now(), collection_id, pos),
             )
+            inserted_clip_ids.append(cur.lastrowid)
         conn.commit()
     except Exception:
         for p in moved:
             p.unlink(missing_ok=True)
-        conn.execute("DELETE FROM clips WHERE collection_id = ?", (collection_id,))
-        conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
+        # Roll back only the rows WE added — never touch pre-existing clips.
+        for cid in inserted_clip_ids:
+            conn.execute("DELETE FROM clips WHERE id = ?", (cid,))
+        if created_new:
+            conn.execute("DELETE FROM collections WHERE id = ?", (collection_id,))
         conn.commit()
         raise
 
     _update_job(conn, job_id, status="accepted", collection_id=collection_id,
-                message=f"Accepted into collection '{job['title']}'.")
+                message=f"Accepted into collection '{slug}'.")
     cleanup_staging(job_id)
     return slug
 

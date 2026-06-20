@@ -712,10 +712,14 @@ def view_split_job(
         ).fetchone()
         if row:
             collection_slug = row["slug"]
+    all_collections = db.execute(
+        "SELECT id, title FROM collections ORDER BY title"
+    ).fetchall()
     return templates.TemplateResponse(
         request, "split_job.html",
         {"job": job, "meta": meta, "clips": clips,
-         "collection_slug": collection_slug, "user": user},
+         "collection_slug": collection_slug, "all_collections": all_collections,
+         "user": user},
     )
 
 
@@ -775,12 +779,22 @@ def rerun_split_job(
 @router.post("/split/{job_id}/accept")
 def accept_split_job(
     job_id: int,
+    target_collection_id: str = Form(""),
     user: dict = Depends(require_role("admin", "uploader")),
     _: None = Depends(require_tailnet),
     db: sqlite3.Connection = Depends(get_db),
 ):
+    # Empty / "new" => create a new collection (original behaviour).
+    target = None
+    raw = (target_collection_id or "").strip().lower()
+    if raw not in ("", "new", "0", "none"):
+        try:
+            target = int(target_collection_id)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Bad target collection")
     try:
-        slug = upload_split.accept_job(db, job_id, user["id"])
+        slug = upload_split.accept_job(db, job_id, user["id"],
+                                       target_collection_id=target)
     except ValueError as e:
         raise HTTPException(409, str(e))
     return RedirectResponse(url=f"/c/{slug}", status_code=303)
