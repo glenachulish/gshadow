@@ -79,6 +79,14 @@ def _all_series(db: sqlite3.Connection) -> list:
         return []
 
 
+def _all_collections(db: sqlite3.Connection) -> list:
+    """All collections (id, slug, title, category), title order — for the
+    'add existing clips to…' and 'assign loose clip to…' pickers."""
+    return db.execute(
+        "SELECT id, slug, title, category FROM collections ORDER BY title"
+    ).fetchall()
+
+
 def _resolve_series_id(db: sqlite3.Connection, raw: str) -> Optional[int]:
     """Turn a posted series_id form value into a valid series id or None.
     Empty string / 'none' / a non-existent id all resolve to None (ungrouped)."""
@@ -454,6 +462,88 @@ def delete_clip(
         if col:
             return RedirectResponse(url=f"/c/{col['slug']}", status_code=303)
     return RedirectResponse(url="/", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Assign existing loose clips to a collection.
+# Moves checked clips into the target collection, appending position numbers
+# after the collection's current maximum. Pure DB updates — audio untouched.
+# Reversible: assigning to an empty/zero target id detaches back to loose.
+# ---------------------------------------------------------------------------
+@router.post("/clips/assign")
+def assign_clips(
+    request: Request,
+    target_collection_id: str = Form(...),
+    clip_ids: List[int] = Form(default=[]),
+    return_to: str = Form("/"),
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    if not clip_ids:
+        return RedirectResponse(url=return_to or "/", status_code=303)
+
+    # Resolve the target. "0" / "" / "loose" means detach to loose clips.
+    detach = target_collection_id.strip().lower() in ("", "0", "loose", "none")
+    target_id = None
+    if not detach:
+        try:
+            tid = int(target_collection_id)
+        except (TypeError, ValueError):
+            raise HTTPException(400, "Bad target collection")
+        row = db.execute(
+            "SELECT id FROM collections WHERE id = ?", (tid,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Target collection not found")
+        target_id = row["id"]
+
+    if detach:
+        # Send the selected clips back to the loose pool.
+        for cid in clip_ids:
+            db.execute(
+                "UPDATE clips SET collection_id = NULL, position = NULL WHERE id = ?",
+                (cid,),
+            )
+        db.commit()
+        return RedirectResponse(url=return_to or "/", status_code=303)
+
+    # Find the current max position in the target so we append rather than clash.
+    row = db.execute(
+        "SELECT COALESCE(MAX(position), 0) AS maxpos FROM clips WHERE collection_id = ?",
+        (target_id,),
+    ).fetchone()
+    next_pos = (row["maxpos"] or 0) + 1
+
+    # Only move clips that are currently loose (collection_id IS NULL), to avoid
+    # silently yanking a clip out of another collection by guessed id.
+    moved = 0
+    for cid in clip_ids:
+        existing = db.execute(
+            "SELECT collection_id FROM clips WHERE id = ?", (cid,)
+        ).fetchone()
+        if existing is None:
+            continue
+        if existing["collection_id"] is not None:
+            # Already in a collection — skip (use the collection page to move it).
+            continue
+        db.execute(
+            "UPDATE clips SET collection_id = ?, position = ? WHERE id = ?",
+            (target_id, next_pos, cid),
+        )
+        next_pos += 1
+        moved += 1
+    db.commit()
+
+    # Redirect to the target collection so the user sees the result.
+    slug_row = db.execute(
+        "SELECT slug FROM collections WHERE id = ?", (target_id,)
+    ).fetchone()
+    if slug_row:
+        return RedirectResponse(url=f"/c/{slug_row['slug']}", status_code=303)
+    return RedirectResponse(url=return_to or "/", status_code=303)
+
+
 # ===========================================================================
 # Split-on-upload — upload one long file, split it in-app, preview, accept.
 # Added 2026-06-19. Routes live here; the worker + accept/cancel logic is in

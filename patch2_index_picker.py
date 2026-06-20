@@ -1,19 +1,43 @@
-{% extends "base.html" %}
-{% block content %}
-  <p style="color: var(--muted); margin: 0 0 1rem;">
-    Choose a category to browse its collections, or read the
-    <a href="/guide">user guide</a> if you're new here.
-  </p>
+#!/usr/bin/env python3
+"""Add an 'assign loose clips to a collection' picker to the home page.
 
-  {% for c in categories %}
-    <a class="category-card" href="/category/{{ c.slug }}">
-      <h3>{{ c.title }}</h3>
-      <p class="desc">{{ c.description }}</p>
-      <p class="meta">{{ c.count }} collection{{ '' if c.count == 1 else 's' }}</p>
-    </a>
-  {% endfor %}
+Design note: HTML forms cannot nest. Each clip already has its own delete
+<form>. So the assign <form> is rendered as JUST the bar (select + submit) and
+sits OUTSIDE the clip loop; each clip's checkbox associates with it via the
+HTML `form="assign-form"` attribute, which works regardless of DOM position.
+That keeps the delete forms valid and avoids nesting.
 
-  {% if clips %}
+Admin/uploader only. Run from ~/gshadow. Validates the single anchor matched
+once before writing. The index route must also pass `collections` to the
+template — patch2b (main.py) handles that.
+"""
+import sys
+
+PATH = "app/templates/index.html"
+text = open(PATH).read()
+
+OLD = '''  {% if clips %}
+    <h2 style="margin-top: 2rem;">Loose individual clips</h2>
+    <p style="color: var(--muted); font-size: 0.9rem;">
+      Single clips not yet in any collection.
+    </p>
+    {% for clip in clips %}
+      <div class="clip">
+        <h3>{{ clip.title }}</h3>
+        {% if clip.description %}<p class="desc">{{ clip.description }}</p>{% endif %}
+        <audio controls preload="none" src="/audio/{{ clip.filename }}"></audio>
+        {% if clip.advice %}<div class="advice">{{ clip.advice }}</div>{% endif %}
+        {% if user and user.role in ['admin', 'uploader'] %}
+          <form method="post" action="/clips/{{ clip.id }}/delete" class="inline-form"
+                onsubmit="return confirm('Delete this clip? This cannot be undone.');">
+            <button type="submit" class="subtle" style="color: var(--error-fg);">Delete</button>
+          </form>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}'''
+
+NEW = '''  {% if clips %}
     <h2 style="margin-top: 2rem;">Loose individual clips</h2>
     <p style="color: var(--muted); font-size: 0.9rem;">
       Single clips not yet in any collection.
@@ -57,10 +81,13 @@
         {% endif %}
       </div>
     {% endfor %}
-  {% endif %}
+  {% endif %}'''
 
-  <div class="guide-promo">
-    First time? Read the <a href="/guide">user guide</a> for an explanation
-    of shadowing and how to use the player.
-  </div>
-{% endblock %}
+n = text.count(OLD)
+if n != 1:
+    sys.exit(f"ABORT: anchor matched {n} times (expected 1). No file written. "
+             f"Your index.html is untouched.")
+text = text.replace(OLD, NEW)
+with open(PATH, "w") as f:
+    f.write(text)
+print(f"OK: wrote {PATH} — added assign picker (bar-only form) + per-clip checkboxes")

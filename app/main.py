@@ -98,12 +98,18 @@ def index(request: Request, db: sqlite3.Connection = Depends(get_db)):
         }
         for c in CATEGORIES
     ]
+    # All collections (id, title), title order — populates the "add loose
+    # clips to a collection" picker shown to admin/uploader on the home page.
+    all_collections = db.execute(
+        "SELECT id, title FROM collections ORDER BY title"
+    ).fetchall()
     return templates.TemplateResponse(
         request,
         "index.html",
         {
             "clips": standalone,
             "categories": cats,
+            "collections": all_collections,
             "user": current_user(request),
         },
     )
