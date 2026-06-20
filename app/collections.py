@@ -130,12 +130,24 @@ def view_collection(
         series = db.execute(
             "SELECT slug, title FROM series WHERE id = ?", (col["series_id"],)
         ).fetchone()
+    # All series in THIS collection's category, for the "set series" dropdown.
+    series_list = db.execute(
+        "SELECT id, slug, title FROM series WHERE category = ? ORDER BY title",
+        (col["category"],),
+    ).fetchall()
+    # Loose clips (not in any collection), for the "add existing clips" panel.
+    loose_clips = db.execute(
+        "SELECT id, title, filename FROM clips "
+        "WHERE collection_id IS NULL ORDER BY uploaded_at DESC"
+    ).fetchall()
     return templates.TemplateResponse(
         request,
         "collection.html",
         {
             "collection": col,
             "series": series,
+            "series_list": series_list,
+            "loose_clips": loose_clips,
             "clips": clips,
             "category": cat,
             "user": current_user(request),
@@ -462,6 +474,35 @@ def delete_clip(
         if col:
             return RedirectResponse(url=f"/c/{col['slug']}", status_code=303)
     return RedirectResponse(url="/", status_code=303)
+
+
+# ---------------------------------------------------------------------------
+# Set (or clear) an existing collection's series. Lets you group collections
+# that already exist — e.g. attach two "Am Misneachadh" collections to one
+# series after the fact. Pure UPDATE of collections.series_id.
+# ---------------------------------------------------------------------------
+@router.post("/c/{slug}/series")
+def set_collection_series(
+    slug: str,
+    request: Request,
+    series_id: str = Form(""),
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    col = db.execute(
+        "SELECT id FROM collections WHERE slug = ?", (slug,)
+    ).fetchone()
+    if not col:
+        raise HTTPException(404, "Collection not found")
+    # "" / "0" / "none" clears the series (back to a loose collection).
+    resolved = _resolve_series_id(db, series_id)
+    db.execute(
+        "UPDATE collections SET series_id = ? WHERE id = ?",
+        (resolved, col["id"]),
+    )
+    db.commit()
+    return RedirectResponse(url=f"/c/{slug}", status_code=303)
 
 
 # ---------------------------------------------------------------------------

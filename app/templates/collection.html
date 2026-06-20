@@ -19,6 +19,22 @@
           onsubmit="return confirm('Delete this whole collection and all its clips? This cannot be undone.');">
       <button type="submit" class="subtle" style="color: var(--error-fg);">Delete collection</button>
     </form>
+    <form method="post" action="/c/{{ collection.slug }}/series"
+          style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin:0.5rem 0;">
+      <label style="margin:0; color:var(--muted);">Series:</label>
+      <select name="series_id" style="width:auto;">
+        <option value="">— none (loose collection) —</option>
+        {% for s in series_list %}
+          <option value="{{ s.id }}" {% if series and s.id == collection.series_id %}selected{% endif %}>{{ s.title }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="subtle">Save series</button>
+      {% if not series_list %}
+        <span style="color:var(--muted); font-size:0.85rem;">
+          No series in this category yet — create one from the category page.
+        </span>
+      {% endif %}
+    </form>
   {% endif %}
   {% if collection.description %}
     <p style="color: var(--muted);">{{ collection.description }}</p>
@@ -91,6 +107,28 @@
       </div>
     {% endfor %}
   </div>
+
+  {% if user and user.role in ['admin', 'uploader'] and loose_clips %}
+    <details class="transcript" style="margin-top:1rem;">
+      <summary>Add existing loose clips to this collection</summary>
+      <div class="body">
+        <form method="post" action="/clips/assign" id="add-existing-form">
+          <input type="hidden" name="target_collection_id" value="{{ collection.id }}">
+          <input type="hidden" name="return_to" value="/c/{{ collection.slug }}">
+          <p style="color:var(--muted); font-size:0.9rem; margin:0 0 0.5rem;">
+            Tick clips not yet in any collection to append them here, in order.
+          </p>
+          {% for lc in loose_clips %}
+            <label style="display:flex; align-items:center; gap:0.5rem; padding:0.2rem 0;">
+              <input type="checkbox" name="clip_ids" value="{{ lc.id }}">
+              <span>{{ lc.title }}</span>
+            </label>
+          {% endfor %}
+          <button type="submit" class="play" style="margin-top:0.5rem;">Add selected to this collection</button>
+        </form>
+      </div>
+    </details>
+  {% endif %}
 
   {% if collection.transcript %}
     <details class="transcript">
