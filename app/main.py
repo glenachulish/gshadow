@@ -22,6 +22,7 @@ from .auth import (
 from .db import get_db, init_db
 from . import collections as collections_module
 from . import series as series_module
+from . import upload_split
 
 # --- Paths -----------------------------------------------------------------
 ROOT = Path(__file__).parent.parent
@@ -65,6 +66,12 @@ app.include_router(collections_module.router)
 # series.py imports a helper from collections.py at module load).
 series_module.configure(templates)
 app.include_router(series_module.router)
+
+# Wire the in-app split feature. Staging MUST live under data/ — the systemd
+# service runs with ProtectSystem=strict and can only write to data/ and audio/.
+from .db import DB_PATH
+STAGING_DIR = ROOT / "data" / "staging"
+upload_split.configure(DB_PATH, STAGING_DIR, AUDIO_DIR)
 
 
 def _now() -> str:
