@@ -92,6 +92,43 @@ work. What happened:
   Mac-side tool and clips reach the Pi via the web upload form. The only
   change is this STATUS.md update (docs commit, no rsync/restart).
 
+### 2026-06-20 — Resume, in-app splitting, per-clip delete (feature session)
+
+A long, multi-deploy session. Several features shipped to the Pi and
+verified in real use:
+
+- **Per-device resume position** — built and deployed. First version had
+  an off-by-one (Resume re-selected the clip just finished, so finishing
+  clip 1 selected the whole collection); fixed to resume at clip N+1 with
+  an end-of-collection "Start over" case. Verified working. One file
+  (`app/templates/collection.html`).
+- **In-app split-on-upload with preview/accept** — the big one. New
+  `/split` page: upload one long file, it splits at pauses on the Pi,
+  shows a preview with per-clip players + durations, then Accept (create
+  collection) / Re-run at a different sensitivity / Cancel. New files:
+  `app/splitter.py` (shared cut logic, also usable by the CLI),
+  `app/upload_split.py` (job worker + accept/cancel), `split.html`,
+  `split_job.html`. Edits to `db.py` (new `split_jobs` table),
+  `collections.py` (the routes), `main.py` (wiring). Reuses the existing
+  import lock so a split and a URL import can't run at once.
+- **Deployment gotcha found and fixed:** the systemd service runs with
+  `ProtectSystem=strict` and `ReadWritePaths=.../data .../audio`, so the
+  app can only write to `data/` and `audio/`. Staging was first put at
+  `~/gshadow/staging` (read-only under the sandbox → 500 error on upload);
+  moved to `data/staging`, which is writable. Recorded for future
+  features that need to write files.
+- **Per-clip delete on collection pages** — the delete route already
+  existed; added a per-row Delete button (admin/uploader only) to
+  `collection.html`. Verified working.
+- **Nav link** — added "Split a long file" to the top nav in `base.html`
+  (the feature was unreachable except by typing the URL until this).
+- Process note: a couple of false-start failures this session were the
+  shell being in `~` instead of `~/gshadow`, and a transient port clash
+  during a manual uvicorn test colliding with the systemd restart — not
+  code bugs. The Mac's own `.venv` can't import the app (no jinja2, and a
+  stray `orain` venv intercepts pip), so app-import sanity checks must be
+  run on the Pi, not the Mac.
+
 ---
 
 ## Feature work — current status
@@ -136,6 +173,28 @@ work. What happened:
   discarding it, add a form field for bulk uploads, render three
   expanders in the collection template. Roughly five files affected;
   needs the Pi deploy.
+
+### 4. In-app split-on-upload (DONE 2026-06-20)
+
+- **DONE and verified.** `/split` page (linked in nav). Upload one long
+  file → splits at pauses on the Pi → preview with per-clip players →
+  Accept / Re-run (gentle/normal/fine/finest) / Cancel. Cut logic shared
+  with the CLI via `app/splitter.py`. Job state in a new `split_jobs`
+  table. Staging lives in `data/staging/` (must be under `data/` or
+  `audio/` — the only writable paths under the systemd sandbox). 25 MB
+  upload cap kept, so it remains a per-chapter tool.
+- Open: hasn't been tuned across many files yet; timing on a full chapter
+  on the Pi not yet recorded — watch for slow splits / page timeouts.
+
+### 5. Per-device resume position (DONE 2026-06-20)
+
+- **DONE and verified.** `localStorage` per collection slug; resumes at
+  the next unfinished clip. Pure frontend, in `collection.html`.
+
+### 6. Per-clip delete on collection pages (DONE 2026-06-20)
+
+- **DONE and verified.** Per-row Delete button (admin/uploader), using
+  the pre-existing `/clips/{id}/delete` route.
 
 ---
 
@@ -182,12 +241,25 @@ items grouped sensibly.*
 - [ ] If yes: add an optional `--transcribe` step to `mac-splitter.py`
 - [ ] Treat all ASR output as draft-for-correction, never auto-publish
 
+### Done 2026-06-20
+- [x] In-app split-on-upload with preview/accept/re-run (`/split`)
+- [x] Per-clip delete on collection pages
+- [x] "Split a long file" nav link
+
 ### New ideas raised (not yet scheduled)
 - [ ] **Move clips between "loose individual clips" and a collection from
       within the website** — currently the only way to get clips into a
       collection is to re-upload them from the computer, which is not
       intuitive. Add an in-page way to assign existing loose clips to a
       collection (and possibly move them back out).
+- [ ] **Group collections under an overarching parent ("book"/"series").**
+      e.g. two chapters of an audiobook, each its own collection, sitting
+      under one parent. NOT a small change — likely a new table or a
+      nullable `parent_id` on `collections`, a migration, and changes to
+      home/category browsing, breadcrumbs, and several templates. Needs a
+      design pass first (separate grouping vs. extending categories; what
+      happens to ungrouped collections; one parent or many). Own session.
+      Handover prompt already written 2026-06-20.
 
 ---
 
@@ -198,6 +270,10 @@ items grouped sensibly.*
 - Should the in-page clip-moving feature also allow reordering within a
   collection? (Related: repo notes already list "no drag-to-reorder" as
   a deliberate omission.)
+- Collection grouping: should a "book"/"series" be a separate grouping
+  that cuts across categories, or an extension of the category system?
+  Should a collection belong to one parent or several? (Affects the
+  next-session grouping feature.)
 
 ## Added 2026-05-26 (later)
 
@@ -207,8 +283,7 @@ items grouped sensibly.*
       filter chip on category/home pages; a `/working-on` index. Per
       collection, not per user — this is a personal site with a curated
       "what I'm working on" shelf. ~5 files; Pi deploy.
-- [ ] **Resume position within a collection.** Per-device, browser-only:
-      `localStorage` stores the last-played clip number per collection
-      slug. On page reopen, scroll to and highlight that clip and show
-      a "Resume from clip N" button rather than autoplaying. Queue
-      position only, not in-clip timestamp. Pure frontend, 1 file.
+- [x] **Resume position within a collection.** DONE & verified
+      2026-06-20. Per-device `localStorage` per slug; resumes at the next
+      unfinished clip; "Start over" at end of collection. One file
+      (`collection.html`).
