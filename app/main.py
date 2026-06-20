@@ -60,7 +60,7 @@ collections_module.configure(
     templates, AUDIO_DIR, ALLOWED_EXTS, MAX_UPLOAD_BYTES
 )
 from .db import DB_PATH
-STAGING_DIR = ROOT / "staging"
+STAGING_DIR = ROOT / "data" / "staging"
 upload_split.configure(DB_PATH, STAGING_DIR, AUDIO_DIR)
 app.include_router(collections_module.router)
 
