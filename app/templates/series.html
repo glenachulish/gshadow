@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ series.title }} — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <a href="/category/{{ category.slug }}">{{ category.title }}</a>
+    <span class="sep">›</span>
+    <span>{{ series.title }}</span>
+  </nav>
+
+  <h2 style="margin: 0 0 0.25rem;">📚 {{ series.title }}</h2>
+  {% if series.description %}
+    <p style="color: var(--muted); margin: 0 0 1rem;">{{ series.description }}</p>
+  {% endif %}
+
+  {% if user and user.role in ['admin', 'uploader'] %}
+    <form method="post" action="/series/{{ series.slug }}/delete" class="inline-form"
+          onsubmit="return confirm('Delete this series? Its chapters will become loose collections (their audio is kept). This cannot be undone.');">
+      <button type="submit" class="subtle" style="color: var(--error-fg);">Delete series</button>
+    </form>
+  {% endif %}
+
+  {% if not collections %}
+    <p style="color: var(--muted);">No chapters in this series yet. Add one from the
+      <a href="/collections/new">New collection</a> form and choose this series.</p>
+  {% endif %}
+
+  {% for c in collections %}
+    <div class="collection-card">
+      <div class="body">
+        <h3>{{ c.title }}</h3>
+        {% if c.description %}<p class="meta">{{ c.description }}</p>{% endif %}
+        <p class="meta">{{ c.clip_count }} clip{{ '' if c.clip_count == 1 else 's' }}</p>
+      </div>
+      <a class="open" href="/c/{{ c.slug }}">Open →</a>
+    </div>
+  {% endfor %}
+{% endblock %}

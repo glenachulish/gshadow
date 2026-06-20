@@ -6,6 +6,10 @@
     <span class="sep">›</span>
     <a href="/category/{{ category.slug }}">{{ category.title }}</a>
     <span class="sep">›</span>
+    {% if series %}
+      <a href="/series/{{ series.slug }}">{{ series.title }}</a>
+      <span class="sep">›</span>
+    {% endif %}
     <span>{{ collection.title }}</span>
   </nav>
 

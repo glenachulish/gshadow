@@ -10,8 +10,27 @@
   <h2 style="margin: 0 0 0.25rem;">{{ category.title }}</h2>
   <p style="color: var(--muted); margin: 0 0 1rem;">{{ category.description }}</p>
 
-  {% if not collections %}
+  {% if user and user.role in ['admin', 'uploader'] %}
+    <p style="margin: 0 0 1rem;">
+      <a class="open" href="/series/new">+ New series (book)</a>
+    </p>
+  {% endif %}
+
+  {% if not series and not collections %}
     <p style="color: var(--muted);">No collections in this category yet.</p>
+  {% endif %}
+
+  {% if series %}
+    {% for s in series %}
+      <div class="collection-card">
+        <div class="body">
+          <h3>📚 {{ s.title }}</h3>
+          {% if s.description %}<p class="meta">{{ s.description }}</p>{% endif %}
+          <p class="meta">{{ s.chapter_count }} chapter{{ '' if s.chapter_count == 1 else 's' }}</p>
+        </div>
+        <a class="open" href="/series/{{ s.slug }}">Open →</a>
+      </div>
+    {% endfor %}
   {% endif %}
 
   {% for c in collections %}

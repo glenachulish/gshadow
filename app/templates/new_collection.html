@@ -26,6 +26,14 @@
         {% endfor %}
       </select>
     </label>
+    <label>Series (optional — for chapters of a book/series)
+      <select name="series_id">
+        <option value="">— none —</option>
+        {% for s in series_list %}
+          <option value="{{ s.id }}">{{ s.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label>Brief description (one or two sentences)
       <textarea name="description"
                 placeholder="What's this collection about? Speaker, source, context…"></textarea>

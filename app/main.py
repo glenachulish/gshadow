@@ -21,7 +21,7 @@ from .auth import (
 )
 from .db import get_db, init_db
 from . import collections as collections_module
-from . import upload_split
+from . import series as series_module
 
 # --- Paths -----------------------------------------------------------------
 ROOT = Path(__file__).parent.parent
@@ -59,10 +59,12 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 collections_module.configure(
     templates, AUDIO_DIR, ALLOWED_EXTS, MAX_UPLOAD_BYTES
 )
-from .db import DB_PATH
-STAGING_DIR = ROOT / "data" / "staging"
-upload_split.configure(DB_PATH, STAGING_DIR, AUDIO_DIR)
 app.include_router(collections_module.router)
+
+# Wire the series module (must be configured AFTER collections, since
+# series.py imports a helper from collections.py at module load).
+series_module.configure(templates)
+app.include_router(series_module.router)
 
 
 def _now() -> str:
@@ -117,21 +119,41 @@ def category_page(
     if not cats_mod.is_valid(cat_slug):
         raise HTTPException(404, "Category not found")
     cat = cats_mod.get(cat_slug)
+
+    # Band 1: series in this category, with a chapter (member-collection)
+    # count. A series is shown even with zero chapters (the creator just
+    # made it and will add to it).
+    series = db.execute(
+        "SELECT s.id, s.slug, s.title, s.description, "
+        "       COUNT(c.id) AS chapter_count "
+        "FROM series s "
+        "LEFT JOIN collections c ON c.series_id = s.id "
+        "WHERE s.category = ? "
+        "GROUP BY s.id "
+        "ORDER BY s.created_at DESC",
+        (cat_slug,),
+    ).fetchall()
+
+    # Band 2: loose collections in this category — those NOT in any series.
+    # A collection that belongs to a series appears under its series card
+    # instead, so it is excluded here to avoid showing it twice.
     collections = db.execute(
         "SELECT c.id, c.slug, c.title, c.description, c.created_at, "
         "       COUNT(cl.id) AS clip_count "
         "FROM collections c "
         "LEFT JOIN clips cl ON cl.collection_id = c.id "
-        "WHERE c.category = ? "
+        "WHERE c.category = ? AND c.series_id IS NULL "
         "GROUP BY c.id "
         "ORDER BY c.created_at DESC",
         (cat_slug,),
     ).fetchall()
+
     return templates.TemplateResponse(
         request,
         "category.html",
         {
             "category": cat,
+            "series": series,
             "collections": collections,
             "user": current_user(request),
         },

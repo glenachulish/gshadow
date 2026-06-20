@@ -77,17 +77,13 @@ def init_db() -> None:
                 updated_at    TEXT    NOT NULL
             );
 
-            CREATE TABLE IF NOT EXISTS split_jobs (
-                id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                title         TEXT    NOT NULL,
-                category      TEXT    NOT NULL DEFAULT 'other',
-                status        TEXT    NOT NULL CHECK (status IN
-                                ('queued','running','ready','accepted','cancelled','failed')),
-                message       TEXT,
-                n_clips       INTEGER,
-                collection_id INTEGER REFERENCES collections(id) ON DELETE SET NULL,
-                created_at    TEXT    NOT NULL,
-                updated_at    TEXT    NOT NULL
+            CREATE TABLE IF NOT EXISTS series (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                slug        TEXT    NOT NULL UNIQUE,
+                title       TEXT    NOT NULL,
+                description TEXT,
+                category    TEXT    NOT NULL DEFAULT 'other',
+                created_at  TEXT    NOT NULL
             );
             """
         )
@@ -116,6 +112,15 @@ def init_db() -> None:
             conn.execute(
                 "UPDATE collections SET category = 'litir' "
                 "WHERE slug LIKE 'litir-%' AND slug NOT LIKE 'litir-bheag-%'"
+            )
+        # Migrate collections table: add series_id column if missing.
+        # Nullable FK to series(id); ON DELETE SET NULL so deleting a series
+        # orphans its chapters back to loose collections rather than deleting
+        # their audio. No backfill: every existing collection starts ungrouped.
+        if "series_id" not in existing_coll_cols:
+            conn.execute(
+                "ALTER TABLE collections ADD COLUMN series_id INTEGER "
+                "REFERENCES series(id) ON DELETE SET NULL"
             )
         conn.commit()
     finally:

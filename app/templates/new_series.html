@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}New series — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>New series</span>
+  </nav>
+
+  <h2>New series (book)</h2>
+  <p style="color: var(--muted);">
+    A series groups several collections that belong together — for example,
+    each chapter of an audiobook is its own collection, and they all sit under
+    one series. Create the series here, then assign collections to it from the
+    <a href="/collections/new">New collection</a> form.
+  </p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/series/new" class="panel">
+    <label>Title
+      <input type="text" name="title" required maxlength="200"
+             placeholder="e.g. Am Misneachadh">
+    </label>
+    <label>Category
+      <select name="category" required>
+        {% for c in categories %}
+          <option value="{{ c.slug }}" {% if c.slug == 'other' %}selected{% endif %}>{{ c.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Brief description (optional)
+      <textarea name="description"
+                placeholder="What is this book / series? Author, narrator, context…"></textarea>
+    </label>
+    <button type="submit">Create series</button>
+  </form>
+{% endblock %}
