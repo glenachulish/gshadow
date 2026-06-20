@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Split preview — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  {% if job.status in ['queued', 'running'] %}
+    <meta http-equiv="refresh" content="3">
+  {% endif %}
+
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <a href="/split">Split an audio file</a>
+    <span class="sep">›</span>
+    <span>Preview</span>
+  </nav>
+
+  <h2>{{ job.title }}</h2>
+  <div class="job-status">
+    <p style="margin: 0 0 0.5rem;">
+      <strong>Status:</strong>
+      <span class="status-{{ job.status }}">{{ job.status }}</span>
+    </p>
+    {% if job.message %}
+      <p style="margin: 0;">{{ job.message }}</p>
+    {% endif %}
+  </div>
+
+  {% if job.status in ['queued', 'running'] %}
+    <p style="color: var(--muted);">
+      This page refreshes every few seconds while the split runs. A long file
+      can take a minute or two on the Pi.
+    </p>
+
+  {% elif job.status == 'ready' %}
+    <p style="color: var(--muted);">
+      {{ clips|length }} clips proposed (sensitivity: {{ meta.sensitivity }}).
+      Listen below. If the cuts look right, accept them to create the
+      collection. If clips are too long or too short, re-run at a different
+      sensitivity.
+    </p>
+
+    <div class="split-actions panel" style="margin-bottom: 1.25rem;">
+      <form method="post" action="/split/{{ job.id }}/accept" class="inline-form"
+            onsubmit="return confirm('Create the collection from these {{ clips|length }} clips?');">
+        <button type="submit">Accept — create collection</button>
+      </form>
+      <form method="post" action="/split/{{ job.id }}/rerun" class="inline-form"
+            style="display: inline-flex; gap: 0.5rem; align-items: center;">
+        <label style="margin: 0; font-weight: normal;">Re-run at
+          <select name="sensitivity" style="width: auto; display: inline-block;">
+            <option value="gentle" {% if meta.sensitivity == 'gentle' %}selected{% endif %}>Gentle</option>
+            <option value="normal" {% if meta.sensitivity == 'normal' %}selected{% endif %}>Normal</option>
+            <option value="fine" {% if meta.sensitivity == 'fine' %}selected{% endif %}>Fine</option>
+            <option value="finest" {% if meta.sensitivity == 'finest' %}selected{% endif %}>Finest</option>
+          </select>
+        </label>
+        <button type="submit" class="subtle">Re-run</button>
+      </form>
+      <form method="post" action="/split/{{ job.id }}/cancel" class="inline-form"
+            onsubmit="return confirm('Discard this split and the uploaded file?');">
+        <button type="submit" class="subtle" style="color: var(--error-fg);">Cancel</button>
+      </form>
+    </div>
+
+    <div id="clips-list">
+      {% for clip in clips %}
+        <div class="clip-row">
+          <span class="pos">{{ "%02d"|format(clip.position) }}</span>
+          <div class="text" style="flex: 1;">
+            <audio controls preload="none" src="/split/{{ job.id }}/clip/{{ clip.filename }}"
+                   style="width: 100%;"></audio>
+            <p class="advice" style="margin-top: 0.25rem;">
+              {{ clip.duration }}s ({{ clip.start }}–{{ clip.end }})
+            </p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+  {% elif job.status == 'accepted' and collection_slug %}
+    <p>
+      <a class="open" style="background: var(--accent); color: white;
+         padding: 0.5rem 1rem; border-radius: 4px; text-decoration: none;"
+         href="/c/{{ collection_slug }}">Open collection →</a>
+    </p>
+
+  {% elif job.status == 'cancelled' %}
+    <p><a href="/split">Split another file</a> · <a href="/">Back to home</a></p>
+
+  {% elif job.status == 'failed' %}
+    <p><a href="/split">Try again</a> · <a href="/">Back to home</a></p>
+  {% endif %}
+{% endblock %}

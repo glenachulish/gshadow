@@ -13,3 +13,5 @@ audio/*
 *.bak
 *.bak2
 backend/
+staging/
+.DS_Store

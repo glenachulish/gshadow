@@ -76,6 +76,19 @@ def init_db() -> None:
                 created_at    TEXT    NOT NULL,
                 updated_at    TEXT    NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS split_jobs (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                title         TEXT    NOT NULL,
+                category      TEXT    NOT NULL DEFAULT 'other',
+                status        TEXT    NOT NULL CHECK (status IN
+                                ('queued','running','ready','accepted','cancelled','failed')),
+                message       TEXT,
+                n_clips       INTEGER,
+                collection_id INTEGER REFERENCES collections(id) ON DELETE SET NULL,
+                created_at    TEXT    NOT NULL,
+                updated_at    TEXT    NOT NULL
+            );
             """
         )
         # Migrate clips table: add collection_id + position columns if missing.

@@ -21,6 +21,7 @@ from .auth import (
 )
 from .db import get_db, init_db
 from . import collections as collections_module
+from . import upload_split
 
 # --- Paths -----------------------------------------------------------------
 ROOT = Path(__file__).parent.parent
@@ -58,6 +59,9 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 collections_module.configure(
     templates, AUDIO_DIR, ALLOWED_EXTS, MAX_UPLOAD_BYTES
 )
+from .db import DB_PATH
+STAGING_DIR = ROOT / "staging"
+upload_split.configure(DB_PATH, STAGING_DIR, AUDIO_DIR)
 app.include_router(collections_module.router)
 
 

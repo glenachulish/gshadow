@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Split an audio file — Gaelic Shadowing Practice{% endblock %}
+{% block content %}
+  <nav class="breadcrumb">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>Split an audio file</span>
+  </nav>
+
+  <h2>Split an audio file into clips</h2>
+  <p style="color: var(--muted);">
+    Upload one longer recording (for example, a single audiobook chapter) and
+    the app will split it at natural pauses into shorter clips. You'll get a
+    preview to check before anything is saved — you can re-run at a different
+    sensitivity or cancel. For best results split a book into chapters first
+    and upload one chapter at a time.
+  </p>
+  <p style="color: var(--muted); font-size: 0.9rem;">
+    Note: splitting runs on the Pi and can take a minute or two for a long
+    file. Only one split or import can run at a time. The file must be under
+    the upload size limit — if a chapter is too big, split the book into
+    smaller chapters first.
+  </p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/split" enctype="multipart/form-data" class="panel">
+    <label>Title
+      <input type="text" name="title" required maxlength="200"
+             placeholder="e.g. Am Misneachadh — Caibideil 1">
+    </label>
+    <label>Category
+      <select name="category" required>
+        {% for c in categories %}
+          <option value="{{ c.slug }}" {% if c.slug == 'other' %}selected{% endif %}>{{ c.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Sensitivity
+      <select name="sensitivity">
+        <option value="gentle">Gentle — fewer, longer clips</option>
+        <option value="normal" selected>Normal</option>
+        <option value="fine">Fine — more, shorter clips</option>
+        <option value="finest">Finest — most clips</option>
+      </select>
+    </label>
+    <label>Audio file (one file)
+      <input type="file" name="file" required
+             accept="audio/*,.mp3,.m4a,.ogg,.wav,.opus,.flac,.aac">
+    </label>
+    <button type="submit">Upload and split</button>
+  </form>
+{% endblock %}

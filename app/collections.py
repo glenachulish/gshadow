@@ -17,6 +17,7 @@ from .auth import current_user, require_role, require_tailnet
 from .db import get_db
 from .importer import run_import_job, is_import_running
 from .adapters import is_supported as adapter_is_supported
+from . import upload_split
 
 router = APIRouter()
 
@@ -413,3 +414,216 @@ def delete_clip(
         if col:
             return RedirectResponse(url=f"/c/{col['slug']}", status_code=303)
     return RedirectResponse(url="/", status_code=303)
+# ===========================================================================
+# Split-on-upload — upload one long file, split it in-app, preview, accept.
+# Added 2026-06-19. Routes live here; the worker + accept/cancel logic is in
+# app/upload_split.py; the cut logic is in app/splitter.py.
+# (Add `from . import upload_split` to the imports at the TOP of this file.)
+# ===========================================================================
+
+
+@router.get("/split", response_class=HTMLResponse)
+def split_form(
+    request: Request,
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+):
+    from . import categories as cats_mod
+    return templates.TemplateResponse(
+        request, "split.html",
+        {"error": None, "user": user, "categories": cats_mod.CATEGORIES},
+    )
+
+
+@router.post("/split")
+async def split_upload(
+    request: Request,
+    title: str = Form(...),
+    category: str = Form("other"),
+    sensitivity: str = Form("normal"),
+    file: UploadFile = File(...),
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    from . import categories as cats_mod
+    if not cats_mod.is_valid(category):
+        category = "other"
+
+    def _form_error(msg: str, code: int = 400):
+        return templates.TemplateResponse(
+            request, "split.html",
+            {"error": msg, "user": user, "categories": cats_mod.CATEGORIES},
+            status_code=code,
+        )
+
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in allowed_exts:
+        return _form_error(
+            f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(allowed_exts))}"
+        )
+    if upload_split.is_busy():
+        return _form_error(
+            "The Pi is busy with another split or import. Wait a minute and try again.",
+            code=409,
+        )
+
+    # Create the job row first so we have an id for the staging dir.
+    cur = db.execute(
+        "INSERT INTO split_jobs (title, category, status, message, created_at, updated_at) "
+        "VALUES (?, ?, 'queued', 'Uploading…', ?, ?)",
+        (title.strip(), category, _now(), _now()),
+    )
+    job_id = cur.lastrowid
+    db.commit()
+
+    # Stream the upload into the job's staging dir, enforcing the size cap.
+    job_dir = upload_split._job_dir(job_id)
+    job_dir.mkdir(parents=True, exist_ok=True)
+    source_path = job_dir / f"source{ext}"
+    total = 0
+    try:
+        with source_path.open("wb") as out:
+            while True:
+                chunk = await file.read(64 * 1024)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_upload_bytes:
+                    raise ValueError("exceeds the size limit")
+                out.write(chunk)
+    except ValueError:
+        upload_split.cleanup_staging(job_id)
+        db.execute("DELETE FROM split_jobs WHERE id = ?", (job_id,))
+        db.commit()
+        return _form_error(
+            f"'{file.filename}' is over the upload size limit. Split the book "
+            "into smaller chapters and upload one at a time."
+        )
+
+    upload_split._write_meta(job_id, {"title": title.strip(), "category": category})
+
+    preset = upload_split.splitter.SENSITIVITY_PRESETS.get(sensitivity, None)
+    if preset is None:
+        sensitivity = "normal"
+
+    threading.Thread(
+        target=upload_split.run_split_job,
+        args=(job_id, source_path, sensitivity,
+              upload_split.splitter.DEFAULT_MIN_CLIP_LEN,
+              upload_split.splitter.DEFAULT_MAX_CLIP_LEN),
+        daemon=True,
+    ).start()
+
+    return RedirectResponse(url=f"/split/jobs/{job_id}", status_code=303)
+
+
+@router.get("/split/jobs/{job_id}", response_class=HTMLResponse)
+def view_split_job(
+    job_id: int,
+    request: Request,
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    job = db.execute(
+        "SELECT id, title, category, status, message, n_clips, collection_id "
+        "FROM split_jobs WHERE id = ?", (job_id,)
+    ).fetchone()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    meta = upload_split.read_meta(job_id) or {}
+    clips = meta.get("clips", [])
+    collection_slug = None
+    if job["collection_id"]:
+        row = db.execute(
+            "SELECT slug FROM collections WHERE id = ?", (job["collection_id"],)
+        ).fetchone()
+        if row:
+            collection_slug = row["slug"]
+    return templates.TemplateResponse(
+        request, "split_job.html",
+        {"job": job, "meta": meta, "clips": clips,
+         "collection_slug": collection_slug, "user": user},
+    )
+
+
+@router.get("/split/{job_id}/clip/{filename}")
+def serve_staged_clip(
+    job_id: int,
+    filename: str,
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+):
+    from fastapi.responses import FileResponse
+    # Guard against path traversal: only allow NN.mp3 from this job's clips dir.
+    if "/" in filename or "\\" in filename or not filename.endswith(".mp3"):
+        raise HTTPException(400, "Bad filename")
+    path = upload_split._job_dir(job_id) / "clips" / filename
+    if not path.exists():
+        raise HTTPException(404, "Clip not found")
+    return FileResponse(str(path), media_type="audio/mpeg")
+
+
+@router.post("/split/{job_id}/rerun")
+def rerun_split_job(
+    job_id: int,
+    sensitivity: str = Form("normal"),
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    job = db.execute(
+        "SELECT id, status FROM split_jobs WHERE id = ?", (job_id,)
+    ).fetchone()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if upload_split.is_busy():
+        # Don't start a second job; just bounce back to the preview.
+        return RedirectResponse(url=f"/split/jobs/{job_id}", status_code=303)
+
+    source_candidates = list(upload_split._job_dir(job_id).glob("source.*"))
+    if not source_candidates:
+        raise HTTPException(409, "The uploaded file is no longer staged; re-upload.")
+
+    db.execute(
+        "UPDATE split_jobs SET status = 'queued', message = 'Re-running…', "
+        "updated_at = ? WHERE id = ?", (_now(), job_id),
+    )
+    db.commit()
+    threading.Thread(
+        target=upload_split.run_split_job,
+        args=(job_id, source_candidates[0], sensitivity,
+              upload_split.splitter.DEFAULT_MIN_CLIP_LEN,
+              upload_split.splitter.DEFAULT_MAX_CLIP_LEN),
+        daemon=True,
+    ).start()
+    return RedirectResponse(url=f"/split/jobs/{job_id}", status_code=303)
+
+
+@router.post("/split/{job_id}/accept")
+def accept_split_job(
+    job_id: int,
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    try:
+        slug = upload_split.accept_job(db, job_id, user["id"])
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return RedirectResponse(url=f"/c/{slug}", status_code=303)
+
+
+@router.post("/split/{job_id}/cancel")
+def cancel_split_job(
+    job_id: int,
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    job = db.execute("SELECT id FROM split_jobs WHERE id = ?", (job_id,)).fetchone()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    upload_split.cancel_job(db, job_id)
+    return RedirectResponse(url=f"/split/jobs/{job_id}", status_code=303)
