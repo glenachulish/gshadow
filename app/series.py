@@ -117,12 +117,12 @@ def view_series(
     # so an empty collection still shows.
     collections = db.execute(
         "SELECT c.id, c.slug, c.title, c.description, c.created_at, "
-        "       COUNT(cl.id) AS clip_count "
+        "       c.series_position, COUNT(cl.id) AS clip_count "
         "FROM collections c "
         "LEFT JOIN clips cl ON cl.collection_id = c.id "
         "WHERE c.series_id = ? "
         "GROUP BY c.id "
-        "ORDER BY c.created_at ASC",
+        "ORDER BY c.series_position IS NULL, c.series_position, c.created_at ASC",
         (series["id"],),
     ).fetchall()
 
@@ -138,6 +138,57 @@ def view_series(
             "user": current_user(request),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Save chapter order within a series (admin/uploader, tailnet-only).
+# Reads a typed number per chapter, sorts by it, and writes back a clean 1..N
+# sequence — so the numbers express RELATIVE order; you needn't keep them
+# contiguous. Chapters with no number sort after numbered ones, by created_at.
+# ---------------------------------------------------------------------------
+@router.post("/series/{slug}/order")
+async def reorder_series(
+    slug: str,
+    request: Request,
+    user: dict = Depends(require_role("admin", "uploader")),
+    _: None = Depends(require_tailnet),
+    db: sqlite3.Connection = Depends(get_db),
+):
+    series = db.execute(
+        "SELECT id FROM series WHERE slug = ?", (slug,)
+    ).fetchone()
+    if not series:
+        raise HTTPException(404, "Series not found")
+
+    # Form posts pos_<collection_id> = <typed number> for each chapter.
+    form = await request.form()
+    members = db.execute(
+        "SELECT id, created_at FROM collections WHERE series_id = ?",
+        (series["id"],),
+    ).fetchall()
+
+    # Build (sort_key, collection_id). Typed numbers sort first (ascending);
+    # blanks/garbage sort last, ordered by created_at among themselves.
+    ranked = []
+    for i, m in enumerate(members):
+        raw = (form.get(f"pos_{m['id']}") or "").strip()
+        try:
+            num = float(raw)
+            key = (0, num, i)  # numbered: group 0, by number, stable by row
+        except (TypeError, ValueError):
+            key = (1, m["created_at"], i)  # unnumbered: group 1, by created_at
+        ranked.append((key, m["id"]))
+
+    ranked.sort(key=lambda t: t[0])
+
+    # Write back a normalised 1..N.
+    for new_pos, (_key, cid) in enumerate(ranked, start=1):
+        db.execute(
+            "UPDATE collections SET series_position = ? WHERE id = ?",
+            (new_pos, cid),
+        )
+    db.commit()
+    return RedirectResponse(url=f"/series/{slug}", status_code=303)
 
 
 # ---------------------------------------------------------------------------

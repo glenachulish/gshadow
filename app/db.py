@@ -122,6 +122,13 @@ def init_db() -> None:
                 "ALTER TABLE collections ADD COLUMN series_id INTEGER "
                 "REFERENCES series(id) ON DELETE SET NULL"
             )
+        # Migrate collections table: add series_position for manual chapter
+        # ordering within a series. NULL = unset (queries fall back to
+        # created_at). No backfill.
+        if "series_position" not in existing_coll_cols:
+            conn.execute(
+                "ALTER TABLE collections ADD COLUMN series_position INTEGER"
+            )
         conn.commit()
     finally:
         conn.close()

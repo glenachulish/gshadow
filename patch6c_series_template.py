@@ -1,27 +1,39 @@
-{% extends "base.html" %}
-{% block title %}{{ series.title }} — Gaelic Shadowing Practice{% endblock %}
-{% block content %}
-  <nav class="breadcrumb">
-    <a href="/">Home</a>
-    <span class="sep">›</span>
-    <a href="/category/{{ category.slug }}">{{ category.title }}</a>
-    <span class="sep">›</span>
-    <span>{{ series.title }}</span>
-  </nav>
+#!/usr/bin/env python3
+"""Add chapter-ordering controls to the series page (admin/uploader only):
+a number box per chapter (pre-filled with its current position) and a
+"Save order" button. Posts pos_<id>=<number> to /series/{slug}/order.
 
-  <h2 style="margin: 0 0 0.25rem;">📚 {{ series.title }}</h2>
-  {% if series.description %}
-    <p style="color: var(--muted); margin: 0 0 1rem;">{{ series.description }}</p>
+For non-admins the page is unchanged. The order <form> wraps the chapter list
+only when admin; each number box sits inside its card. No JS.
+
+Run from ~/gshadow. Each anchor must match exactly once.
+"""
+import sys
+
+PATH = "app/templates/series.html"
+text = open(PATH).read()
+
+EDITS = [
+    # 1. Open the order form (admin only) right before the chapter loop, and
+    #    add a hint. Anchor on the "no chapters" block + the loop start.
+    (
+        "Open order form before the chapter loop",
+        '''  {% if not collections %}
+    <p style="color: var(--muted);">No chapters in this series yet. Add one from the
+      <a href="/collections/new">New collection</a> form and choose this series.</p>
   {% endif %}
 
-  {% if user and user.role in ['admin', 'uploader'] %}
-    <form method="post" action="/series/{{ series.slug }}/delete" class="inline-form"
-          onsubmit="return confirm('Delete this series? Its chapters will become loose collections (their audio is kept). This cannot be undone.');">
-      <button type="submit" class="subtle" style="color: var(--error-fg);">Delete series</button>
-    </form>
-  {% endif %}
-
-  {% if not collections %}
+  {% for c in collections %}
+    <div class="collection-card">
+      <div class="body">
+        <h3>{{ c.title }}</h3>
+        {% if c.description %}<p class="meta">{{ c.description }}</p>{% endif %}
+        <p class="meta">{{ c.clip_count }} clip{{ '' if c.clip_count == 1 else 's' }}</p>
+      </div>
+      <a class="open" href="/c/{{ c.slug }}">Open →</a>
+    </div>
+  {% endfor %}''',
+        '''  {% if not collections %}
     <p style="color: var(--muted);">No chapters in this series yet. Add one from the
       <a href="/collections/new">New collection</a> form and choose this series.</p>
   {% endif %}
@@ -59,5 +71,16 @@
         <a class="open" href="/c/{{ c.slug }}">Open →</a>
       </div>
     {% endfor %}
-  {% endif %}
-{% endblock %}
+  {% endif %}''',
+    ),
+]
+
+for desc, find, replace in EDITS:
+    n = text.count(find)
+    if n != 1:
+        sys.exit(f"ABORT: edit '{desc}' matched {n} times (expected 1). No file written. "
+                 f"Your series.html is untouched.")
+    text = text.replace(find, replace)
+with open(PATH, "w") as f:
+    f.write(text)
+print(f"OK: wrote {PATH} — added per-chapter order boxes + Save (admin only)")
