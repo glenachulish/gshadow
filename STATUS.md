@@ -287,3 +287,63 @@ items grouped sensibly.*
       2026-06-20. Per-device `localStorage` per slug; resumes at the next
       unfinished clip; "Start over" at end of collection. One file
       (`collection.html`).
+
+---
+
+## Session 2026-06-25 — PWA (installable app shell)
+
+Made the site an installable Progressive Web App (app-shell only; audio is
+NOT cached for offline — see decision below). Now installable to the iOS
+home screen with a custom icon, and the shell loads from cache.
+
+**What was added:**
+- `audio/_pwa/manifest.json` — web app manifest (name, theme colour
+  `#2d5a3d`, standalone display, icon set).
+- `audio/_pwa/sw.js` — service worker. Network-first for page navigations
+  so login/admin/fresh content always win online; falls back to the cached
+  shell offline. Explicitly BYPASSES `/audio/*`, `/login`, `/logout`,
+  `/upload`, `/admin`, `/import`, `/split` — no audio or auth state cached.
+- Icons in `audio/_pwa/`: `icon-192`, `icon-512`, maskable variants, and
+  `apple-touch-icon.png` (green waveform motif).
+- `app/main.py`: routes `/manifest.json`, `/sw.js`, and a name-allowlisted
+  `/{icon}.png`, all served from `audio/_pwa/`. `/sw.js` sends
+  `Service-Worker-Allowed: /` and `Cache-Control: no-cache`.
+- `app/templates/base.html`: manifest link, theme-color, iOS meta tags,
+  apple-touch-icon link, and the service-worker registration script.
+
+**Why files live under `audio/_pwa/`:** `ProtectSystem=strict` only allows
+writes under `data/` and `audio/`. The PWA assets are served by routes (not
+a static mount) reading from `audio/_pwa/`.
+
+**Why served from root, not `/audio/`:** a service worker can only control
+URLs at or below its own path, so `/sw.js` must sit at the site root for its
+scope to cover the whole app.
+
+**Tracked in git despite `audio/*` being ignored:** added a `!audio/_pwa/`
+exception so these source assets are versioned. They are app source, not
+runtime data — without this a fresh Pi rebuild would silently ship a broken
+PWA. (Decision this session.)
+
+**Deploy gotcha learned:** the rsync deploy excludes `audio/`, so the
+`_pwa/` files do NOT sync via the normal deploy. They were scp'd directly:
+`scp -r audio/_pwa pi@ceol-pi.local:/home/pi/gshadow/audio/`. After any
+change to the PWA assets, scp them and restart the service. (Now that
+`_pwa/` is git-tracked, an alternative is to drop the `audio` rsync exclude
+for PWA-touching deploys.)
+
+**iOS icon caching:** the home-screen icon comes from `apple-touch-icon`,
+not the manifest, and Safari caches it hard. A failed early install cached
+its absence; fix was Settings → Apps → Safari → Clear History and Website
+Data, then reload and Add to Home Screen. Verified working 2026-06-25.
+
+**Decision — audio NOT cached offline (v1):** caching clips for true
+offline shadowing is a separate, bigger job (storage limits, invalidation
+when clips are deleted/replaced). v1 is an installable, fast app shell
+only. Offline-audio is a possible future item, not committed to.
+
+### PWA follow-ups (not yet done)
+- [ ] (Optional) Decide whether to cache audio for true offline practice.
+      Big job: storage caps, cache invalidation on clip delete/replace.
+- [ ] (Housekeeping) Consider adding `.DS_Store` to rsync excludes so Mac
+      cruft stops reaching the Pi (one `app/.DS_Store` already synced;
+      harmless, untracked).

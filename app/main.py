@@ -413,6 +413,51 @@ def admin_toggle_user(
     return RedirectResponse(url="/admin", status_code=303)
 
 
+# --- PWA (manifest, service worker, icons) ---------------------------------
+# Files live under audio/_pwa/ so they sit on a ProtectSystem=strict-writable
+# path. The service worker is served from the site root (/sw.js) so its scope
+# covers the whole app, not just /audio.
+from fastapi.responses import FileResponse, Response as _Response
+
+_PWA_DIR = AUDIO_DIR / "_pwa"
+
+
+@app.get("/manifest.json")
+def pwa_manifest():
+    f = _PWA_DIR / "manifest.json"
+    if not f.exists():
+        raise HTTPException(404, "manifest not found")
+    return FileResponse(str(f), media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def pwa_service_worker():
+    f = _PWA_DIR / "sw.js"
+    if not f.exists():
+        raise HTTPException(404, "service worker not found")
+    # Service-Worker-Allowed lets the SW claim root scope; no-cache so updates
+    # to sw.js are picked up promptly by the browser.
+    return FileResponse(
+        str(f),
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+    )
+
+
+@app.get("/{icon_name:path}.png")
+def pwa_icon(icon_name: str):
+    allowed = {
+        "icon-192", "icon-512", "icon-192-maskable",
+        "icon-512-maskable", "apple-touch-icon",
+    }
+    if icon_name not in allowed:
+        raise HTTPException(404, "not found")
+    f = _PWA_DIR / f"{icon_name}.png"
+    if not f.exists():
+        raise HTTPException(404, "icon not found")
+    return FileResponse(str(f), media_type="image/png")
+
+
 # --- Health check ----------------------------------------------------------
 @app.get("/healthz")
 def healthz():

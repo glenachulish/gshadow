@@ -8,6 +8,8 @@ data/*.db-wal
 data/*.db-shm
 audio/*
 !audio/.gitkeep
+!audio/_pwa/
+!audio/_pwa/*
 
 # backups and dead code
 *.bak
